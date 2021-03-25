@@ -5,6 +5,7 @@ import scipy as sp
 import scipy.fftpack as ft
 import time
 
+
 def IFT2(f):
     """ 2D Fourier Transform, with proper shift
     """
@@ -125,6 +126,37 @@ def shift_image(image, shift):
                                     shifted[:, :int(W - shift[1])] # shift right
     return shifted
     
+def open_binary_volume_with_hotpixel_correction(name, 
+                                                VOLUME_SLICES,
+                                                IMAGES_DIMENSION,
+                                                hotpixel_value=64000,
+                                                format=np.uint16):
+    """ It also performs hotpixel correction"""
+    with open(name, 'rb') as file:
+        raw_array = np.fromfile(file, dtype=format)
+    raw_array[raw_array[:] > hotpixel_value] = 0
+    volume_array =  np.reshape(raw_array, (VOLUME_SLICES,
+                                           IMAGES_DIMENSION,
+                                           IMAGES_DIMENSION))
+    return volume_array
+
+def files_names_list(total_volumes, seed_0='SPC00_TM', 
+                                    seed_1='_ANG000_CM', 
+                                    seed_2='_CHN00_PH0'):
+    """ Basically used to list acquisition files so that I can parallelize.
+    List paradigm:[entry, viewws_1_array_volume, view_2_array_volume]
+    """
+    files_list = []
+    j = 0
+    for i in range(total_volumes):
+        temp_list = [str(i)]
+        for k in range(0, 2):
+            temp_list.append(seed_0 + f'{j:05}' + seed_1
+                            + str(k) + seed_2 + ".stack")
+        files_list.append(temp_list)
+        j += 1
+    return files_list
+
 
 if __name__ == '__main__':
 
