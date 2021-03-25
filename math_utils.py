@@ -36,21 +36,20 @@ def convert_to_16_bit(array):
     return array_rescaled
 
 def deconvolve_RL(stack, 
-               psf, 
-               iterations,
-               tell_steps=False):
+                  psf,
+                  iterations,
+                  tell_steps=False):
     """Simple Lucy-Richarson deconvolution.
     N.B. TO DO: add renormalization.
     N.B.2 It returns a real-valued result, not int.
     """
     o = np.copy(stack).astype(complex)
-    # lucy-richardson in the for loop
+    # Richardson-Lucy in the for loop
     for k in range (iterations):
         step_0 = stack/(IFT3(FT3(o)*FT3(psf)))
         step_1 = IFT3(FT3(step_0)*np.conj(FT3(psf)))
         o *= step_1
-        if(tell_steps):
-            print(k)
+        if(tell_steps): print(k)
     return np.real(o)
 
 def gaussian_2D(dim, center=[0, 0], sigma=1):
@@ -101,6 +100,42 @@ def spatial_Xcorr_2D(f, g):
 def cross_corr_peak_2D(cross):
     row_shift, col_shift = np.unravel_index(np.argmax(cross), cross.shape)
     return int(row_shift - cross.shape[0]/2), int(col_shift - cross.shape[1]/2)
+
+def spatial_Xcorr_3D(f, g):
+    """
+    Cross-correlation between two 2D functions: (f**g).
+    N.B. f can be considered as the moving input, g as the target.
+    - inputs are padded to avoid artifacts (this makes it slower)
+    - The output is normalized to [0,1)
+    """
+    Z, M, N = f.shape[0], f.shape[1], f.shape[2]
+    one, two = np.pad(np.copy(f),
+                      ((int(Z/2), int(Z/2)),
+                      (int(M/2), int(M/2)),
+                       (int(N/2), int(N/2))),
+                      mode = 'constant',
+                      constant_values=(0, 0, 0)),\
+               np.pad(np.copy(g),
+                      ((int(z/2), int(z/2)),
+                      (int(M/2), int(M/2)),
+                      (int(N/2), int(N/2))),
+                      mode = 'constant', 
+                      constant_values=(0, 0, 0))                  
+    ONE, TWO =   FT3(one), FT3(two)
+    spatial_cross = ft.ifftshift(ft.ifftn(ft.ifftshift(ONE) \
+                  * np.conj(ft.ifftshift(TWO)))) \
+                    [int(Z/2) :int(Z/2+Z),
+                    int(M/2) :int(M/2+M),
+                    int(N/2) : int(N/2+N)]
+    spatial_cross = normalize_0_1(spatial_cross)
+    return np.real(spatial_cross)
+
+def cross_corr_peak_3D(cross):
+    depth_shift, row_shift, col_shift = \
+                                np.unravel_index(np.argmax(cross), cross.shape)
+    return int(depth_shift - cross.shape[0]/2), \
+           int(row_shift - cross.shape[0]/2),
+           int(col_shift - cross.shape[1]/2)
 
 def remove_background(image, background_image):
     """ Subtracts the background mean. 
@@ -156,7 +191,7 @@ def files_names_list(total_volumes, seed_0='SPC00_TM',
         files_list.append(temp_list)
         j += 1
     return files_list
-
+         
 
 if __name__ == '__main__':
 
