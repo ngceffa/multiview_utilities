@@ -6,15 +6,15 @@ import scipy.fftpack as ft
 import time
 
 
-def IFT2(f):
-    """ 2D Fourier Transform, with proper shift
-    """
-    return (ft.fftshift(ft.ifft2(ft.ifftshift(f))))
-
 def FT2(f):
     """ 2D Inverse Fourier Transform, with proper shift
     """
     return (ft.fftshift(ft.fft2(ft.ifftshift(f))))
+
+def IFT2(f):
+    """ 2D Fourier Transform, with proper shift
+    """
+    return (ft.fftshift(ft.ifft2(ft.ifftshift(f))))
 
 def FT3(f):
     """ 3D Fourier Transform, with proper shift
@@ -72,7 +72,7 @@ def normalize_0_1(array):
     normalized = (array - minimum) / delta
     return normalized
 
-def spatial_Xcorr_2D(f, g):
+def spatial_xcorr_2D(f, g):
     """
     Cross-correlation between two 2D functions: (f**g).
     N.B. f can be considered as the moving input, g as the target.
@@ -97,11 +97,11 @@ def spatial_Xcorr_2D(f, g):
     spatial_cross = normalize_0_1(spatial_cross)
     return np.real(spatial_cross)
 
-def cross_corr_peak_2D(cross):
+def xcorr_peak_2D(cross):
     row_shift, col_shift = np.unravel_index(np.argmax(cross), cross.shape)
     return int(row_shift - cross.shape[0]/2), int(col_shift - cross.shape[1]/2)
 
-def spatial_Xcorr_3D(f, g):
+def spatial_xcorr_3D(f, g):
     """
     Cross-correlation between two 2D functions: (f**g).
     N.B. f can be considered as the moving input, g as the target.
@@ -130,11 +130,11 @@ def spatial_Xcorr_3D(f, g):
     spatial_cross = normalize_0_1(spatial_cross)
     return np.real(spatial_cross)
 
-def cross_corr_peak_3D(cross):
+def xcorr_peak_3D(cross):
     depth_shift, row_shift, col_shift = \
                                 np.unravel_index(np.argmax(cross), cross.shape)
     return int(depth_shift - cross.shape[0]/2), \
-           int(row_shift - cross.shape[0]/2),
+           int(row_shift - cross.shape[0]/2), \
            int(col_shift - cross.shape[1]/2)
 
 def remove_background(image, background_image):
@@ -196,10 +196,10 @@ def files_names_list(total_volumes, seed_0='SPC00_TM',
 if __name__ == '__main__':
 
     gau1 = gaussian_2D(1024, sigma=20)
-    gau2 = gaussian_2D(1024, [-100, -100], 20) #row major convention for the center
+    gau2 = gaussian_2D(1024, [-100, -100], 20) #row major convention
 
-    cross = spatial_Xcorr_2D(gau2, gau1)
-    row, col = cross_corr_peak_2D(cross)
+    cross = spatial_xcorr_2D(gau2, gau1)
+    row, col = xcorr_peak_2D(cross)
     print(row, col)
     row = row * -1
     col = col * -1

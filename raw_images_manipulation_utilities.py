@@ -1,6 +1,26 @@
 import math_utils as utils
 import numpy as np
+import matplotlib.pyplot as plt
 
+
+def explore_cameras_offset(cam_1, cam_2, slices=[0], show=True):
+    """Returns a tuple.
+    """
+    shift_row, shift_col = [], []
+    for image in slices:
+        cross = utils.spatial_xcorr_2D(cam_1[int(image), :, :],
+                                       cam_2[int(image), :, :])
+        row, col = utils.xcorr_peak_2D(cross)
+        shift_row.append(-1 * row); shift_col.append(-1 * col)
+    if(show):
+        plt.figure('cameras offseet exploration')
+        plt.plot(shift_row, 'b.-')
+        plt.plot(shift_col, 'g.-')
+        plt.xlabel('image')
+        plt.ylabel('shift')
+        plt.show()
+    return (int(np.round(np.mean(shift_row))), 
+            int(np.round(np.mean(shift_col))))
 
 def cameras_shift_registration(views, shift):
     """ Cure the intrinsic shift between the two cameras by moving one set of 
@@ -38,6 +58,7 @@ def merge_views(front, back, method='local_variance', sigma=10):
                                      + back_weigth * back[i, :, :])\
                                      / tot[:, :])
     return merged
+
 
 if __name__ == '__main__':
     x = np.arange(1, 10, 1)
