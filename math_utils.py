@@ -72,7 +72,7 @@ def normalize_0_1(array):
     normalized = (array - minimum) / delta
     return normalized
 
-def spatial_xcorr_2D(f, g):
+def spatial_xcorr_2D(f, g, pad=False):
     """
     Cross-correlation between two 2D functions: (f**g).
     N.B. f can be considered as the moving input, g as the target.
@@ -80,20 +80,25 @@ def spatial_xcorr_2D(f, g):
     - The output is normalized to [0,1)
     """
     M, N = f.shape[0], f.shape[1]
-    one, two = np.pad(np.copy(f),
-                      ((int(M/2), int(M/2)),
-                       (int(N/2), int(N/2))),
-                      mode = 'constant',
-                      constant_values=(0,0)),\
-               np.pad(np.copy(g),
-                      ((int(M/2), int(M/2)),
-                      (int(N/2), int(N/2))),
-                      mode = 'constant', 
-                      constant_values=(0,0))                  
-    ONE, TWO =   FT2(one), FT2(two)
-    spatial_cross = ft.ifftshift(ft.ifft2(ft.ifftshift(ONE) \
-                  * np.conj(ft.ifftshift(TWO)))) \
-                    [int(M/2) :int(M/2+M), int(N/2) : int(N/2+N)]
+    if(pad):
+        one, two = np.pad(np.copy(f),
+                        ((int(M/2), int(M/2)),
+                        (int(N/2), int(N/2))),
+                        mode = 'constant',
+                        constant_values=(0,0)),\
+                np.pad(np.copy(g),
+                        ((int(M/2), int(M/2)),
+                        (int(N/2), int(N/2))),
+                        mode = 'constant', 
+                        constant_values=(0,0))                  
+        ONE, TWO =   FT2(one), FT2(two)
+        spatial_cross = ft.ifftshift(ft.ifft2(ft.ifftshift(ONE) \
+                    * np.conj(ft.ifftshift(TWO)))) \
+                        [int(M/2) :int(M/2+M), int(N/2) : int(N/2+N)]
+    else:
+        ONE, TWO =   FT2(f), FT2(g)
+        spatial_cross = ft.ifftshift(ft.ifft2(ft.ifftshift(ONE) \
+                    * np.conj(ft.ifftshift(TWO))))
     spatial_cross = normalize_0_1(spatial_cross)
     return np.real(spatial_cross)
 
@@ -101,7 +106,7 @@ def xcorr_peak_2D(cross):
     row_shift, col_shift = np.unravel_index(np.argmax(cross), cross.shape)
     return int(row_shift - cross.shape[0]/2), int(col_shift - cross.shape[1]/2)
 
-def spatial_xcorr_3D(f, g):
+def spatial_xcorr_3D(f, g, pad=False):
     """
     Cross-correlation between two 2D functions: (f**g).
     N.B. f can be considered as the moving input, g as the target.
@@ -109,24 +114,29 @@ def spatial_xcorr_3D(f, g):
     - The output is normalized to [0,1)
     """
     Z, M, N = f.shape[0], f.shape[1], f.shape[2]
-    one, two = np.pad(np.copy(f),
-                      ((int(Z/2), int(Z/2)),
-                      (int(M/2), int(M/2)),
-                       (int(N/2), int(N/2))),
-                      mode = 'constant',
-                      constant_values=(0, 0, 0)),\
-               np.pad(np.copy(g),
-                      ((int(z/2), int(z/2)),
-                      (int(M/2), int(M/2)),
-                      (int(N/2), int(N/2))),
-                      mode = 'constant', 
-                      constant_values=(0, 0, 0))                  
-    ONE, TWO =   FT3(one), FT3(two)
-    spatial_cross = ft.ifftshift(ft.ifftn(ft.ifftshift(ONE) \
-                  * np.conj(ft.ifftshift(TWO)))) \
-                    [int(Z/2) :int(Z/2+Z),
-                    int(M/2) :int(M/2+M),
-                    int(N/2) : int(N/2+N)]
+    if(pad):
+        one, two = np.pad(np.copy(f),
+                        ((int(Z/2), int(Z/2)),
+                        (int(M/2), int(M/2)),
+                        (int(N/2), int(N/2))),
+                        mode = 'constant',
+                        constant_values=(0)),\
+                np.pad(np.copy(g),
+                        ((int(Z/2), int(Z/2)),
+                        (int(M/2), int(M/2)),
+                        (int(N/2), int(N/2))),
+                        mode = 'constant', 
+                        constant_values=(0,))       
+        ONE, TWO =   FT3(one), FT3(two)
+        spatial_cross = ft.ifftshift(ft.ifftn(ft.ifftshift(ONE) \
+                    * np.conj(ft.ifftshift(TWO)))) \
+                        [int(Z/2) :int(Z/2+Z),
+                        int(M/2) :int(M/2+M),
+                        int(N/2) : int(N/2+N)]
+    else:
+        ONE, TWO =   FT3(f), FT3(g)
+        spatial_cross = ft.ifftshift(ft.ifftn(ft.ifftshift(ONE) \
+                  * np.conj(ft.ifftshift(TWO))))
     spatial_cross = normalize_0_1(spatial_cross)
     return np.real(spatial_cross)
 
@@ -134,8 +144,8 @@ def xcorr_peak_3D(cross):
     depth_shift, row_shift, col_shift = \
                                 np.unravel_index(np.argmax(cross), cross.shape)
     return int(depth_shift - cross.shape[0]/2), \
-           int(row_shift - cross.shape[0]/2), \
-           int(col_shift - cross.shape[1]/2)
+           int(row_shift - cross.shape[1]/2), \
+           int(col_shift - cross.shape[2]/2)
 
 def remove_background(image, background_image):
     """ Subtracts the background mean. 
@@ -191,7 +201,27 @@ def files_names_list(total_volumes, seed_0='SPC00_TM',
         files_list.append(temp_list)
         j += 1
     return files_list
-         
+
+def dif1_matrix(x):
+    '''
+    In case for len(x) = 5:
+    dif = np.array(
+    [[1, 0, 0, 0, 0],
+     [-1, 1, 0, 0, 0],
+     [0, -1, 1, 0, 0],
+     [0, 0, -1, 1, 0],
+     [0, 0, 0, -1, 1]])
+    '''
+    # Diagonal elements are 1.
+    dif_now = np.diag(np.ones(len(x)))
+     
+    # Left elements of diagonal are -1.
+    dif_pre_ones = np.ones(len(x)-1) * - 1 # -1 vector.
+    dif_pre = np.diag(dif_pre_ones, k=-1) # Diagonal matrix shiftedto left.
+     
+    dif = dif_now + dif_pre
+    return dif
+
 
 if __name__ == '__main__':
 

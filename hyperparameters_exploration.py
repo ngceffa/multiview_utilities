@@ -4,6 +4,7 @@ import raw_images_manipulation_utilities as imanip
 import os
 import tifffile as tif
 import matplotlib.pyplot as plt
+import time
 # define a procedure to find:
 #   - shifts from the cameras
 #   - sigma for merging
@@ -28,27 +29,21 @@ if __name__=='__main__':
     if os.path.isdir(DATA_OUTPUT_FOLDER) == False:
         os.mkdir(DATA_OUTPUT_FOLDER)
     
-    # filename_front = 'front.stack'
-    # filename_back = 'back.stack'
-    # front = utils.open_binary_volume_with_hotpixel_correction(filename_front,
-    #                                                           VOLUME_SLICES,
-    #                                                           IMAGES_DIMENSION)
-    # back = utils.open_binary_volume_with_hotpixel_correction(filename_back,
-    #                                                           VOLUME_SLICES,
-    #                                                           IMAGES_DIMENSION)
-    
-    front = tif.imread(IMAGES_FOLDER + 'SPC00_TM00000_ANG000_CM0_CHN00_PH0.tif')
-    back = tif.imread(IMAGES_FOLDER + 'SPC00_TM00000_ANG000_CM1_CHN00_PH0.tif')
-    images = np.arange(75, 80, 2)
+    filename_front = IMAGES_FOLDER + 'front.stack'
+    filename_back = IMAGES_FOLDER + 'back.stack'
+    front = utils.open_binary_volume_with_hotpixel_correction(filename_front,
+                                                              VOLUME_SLICES,
+                                                              IMAGES_DIMENSION)
+    back = utils.open_binary_volume_with_hotpixel_correction(filename_back,
+                                                              VOLUME_SLICES,
+                                                              IMAGES_DIMENSION)
     front=front[:, :, ::-1]
-    shifts = imanip.explore_cameras_offset(front, back, images)
+
+    start=time.time()
+    shifts = imanip.explore_cameras_offset(front, back)
     front_r = imanip.cameras_shift_registration(front, shifts)
+    print(time.time() - start)
     print(shifts)
-    fig=plt.figure('1')
-    fig.add_subplot(311)
-    plt.imshow(front[80,:,:])
-    fig.add_subplot(312)
-    plt.imshow(front_r[80,:,:])
-    fig.add_subplot(313)
-    plt.imshow(back[80,:,:])
-    plt.show()
+
+    merged = imanip.merge_views(front_r, back, 'gradient', sigma=40)
+    merged.tofile(VOLUMES_OUTPUT_FOLDER + 'merged_gradient_median.stack')

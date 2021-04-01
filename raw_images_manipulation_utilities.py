@@ -1,17 +1,23 @@
 import math_utils as utils
 import numpy as np
 import matplotlib.pyplot as plt
+import skimage.filters as skf
+import imagej
 
 
-def explore_cameras_offset(cam_1, cam_2, slices=[0], show=True):
+def explore_cameras_offset(cam_1, cam_2, show=True):
     """Returns a tuple.
     """
     shift_row, shift_col = [], []
-    for image in slices:
-        cross = utils.spatial_xcorr_2D(cam_1[int(image), :, :],
-                                       cam_2[int(image), :, :])
+    for i in range(cam_1.shape[0]):
+        cross = utils.spatial_xcorr_2D(cam_1[i, :, :],
+                                       cam_2[i, :, :])
         row, col = utils.xcorr_peak_2D(cross)
-        shift_row.append(-1 * row); shift_col.append(-1 * col)
+         # assume there must be at least a small offset,
+        # and if it finds less than 2 pixels 
+        # it assumes it comes from lack of deetails/signal
+        if(np.abs(row) >= 2 and np.abs(col) >= 2):
+            shift_row.append(-1 * row); shift_col.append(-1 * col)
     if(show):
         plt.figure('cameras offseet exploration')
         plt.plot(shift_row, 'b.-')
@@ -40,6 +46,23 @@ def merge_views(front, back, method='local_variance', sigma=10):
     if method == 'average':
         # Super simple average: fast but poor quality
         merged[:, :, :] = np.int((front[:, :, :] + back[:, :, :] / 2))
+    elif method == 'gradient':
+        gaus_1 = utils.gaussian_2D(1024, sigma=sigma)
+        Gaus_1 = utils.FT2(gaus_1)
+        for i in range(front.shape[0]):
+            Front = utils.FT2(front[i, :, :])
+            Back = utils.FT2(back[i, :, :])
+            grad_f = np.gradient(front[i, :, :])
+            grad_b = np.gradient(back[i, :, :])
+            front_weight = np.sqrt(grad_f[0]**2+grad_f[1]**2)
+            back_weigth = np.sqrt(grad_b[0]**2+grad_b[1]**2)
+
+            tot = front_weight + back_weigth
+            merged[i, :, :] = np.real((front_weight * front[i, :, :] 
+                                     + back_weigth * back[i, :, :])\
+                                     / tot[:, :])
+            # and despeckle
+            merged[i, :, :] = skf.median(merged[i, :, :])
     elif method == 'local_variance':
         # Images are merged using the approximation of local variance
         # similar to the one defined  in Preibish et al. 2008
@@ -52,7 +75,7 @@ def merge_views(front, back, method='local_variance', sigma=10):
             Front = utils.FT2(front[i, :, :])
             Back = utils.FT2(back[i, :, :])
             front_weight = (utils.IFT2(Front - (Front * Gaus_1)))**2
-            back_weigth = (utils.IFT2(Back - (Front * Gaus_1)))**2
+            back_weigth = (utils.IFT2(Back - (Back * Gaus_1)))**2
             tot = front_weight + back_weigth
             merged[i, :, :] = np.real((front_weight * front[i, :, :] 
                                      + back_weigth * back[i, :, :])\
