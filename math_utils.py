@@ -3,7 +3,6 @@ from numba import jit
 import matplotlib.pyplot as plt
 import scipy as sp
 import scipy.fftpack as ft
-import time
 
 
 def FT2(f):
@@ -60,8 +59,8 @@ def gaussian_2D(dim, center=[0, 0], sigma=1):
         - sigma = stdev
     """
     x, y = np.meshgrid(np.arange(-dim/2, dim/2, 1), np.arange(-dim/2, dim/2, 1))
-    top = (x - center[1])**2+(y - center[0])**2 # row major convention
-    return np.exp(-(top/(2 * sigma)**2))
+    top = (x - center[1])**2 + (y - center[0])**2 # row major convention
+    return np.exp(-(top / (2 * sigma)**2))
 
 def normalize_0_1(array):
     """ Normalize input (N-dim) array to 0-1 range.
@@ -179,30 +178,31 @@ def files_names_list(total_volumes, seed_0='SPC00_TM',
                                     seed_1='_ANG000_CM', 
                                     seed_2='_CHN00_PH0'):
     """ Basically used to list acquisition files so that I can parallelize.
-    List paradigm:[entry, viewws_1_array_volume, view_2_array_volume]
+    List paradigm: [entry (int), views_1 (array), view_2 (array)]
     """
     files_list = []
     j = 0
     for i in range(total_volumes):
-        temp_list = [str(i)]
+        temp_list = [i]
         for k in range(0, 2):
             temp_list.append(seed_0 + f'{j:05}' + seed_1
                             + str(k) + seed_2 + ".stack")
         files_list.append(temp_list)
         j += 1
     return files_list
-         
+
 
 if __name__ == '__main__':
 
+    print('\nI am working\n')
     gau1 = gaussian_2D(1024, sigma=20)
-    gau2 = gaussian_2D(1024, [-100, -100], 20) #row major convention
+    # gau2 = gaussian_2D(1024, [-100, -100], 20) #row major convention
 
-    cross = spatial_xcorr_2D(gau2, gau1)
-    row, col = xcorr_peak_2D(cross)
-    print(row, col)
-    row = row * -1
-    col = col * -1
-    image = shift_image(gau2, (row, col))
-    plt.imshow(image)
-    plt.show()
+    # cross = spatial_xcorr_2D(gau2, gau1)
+    # row, col = xcorr_peak_2D(cross)
+    # print(row, col)
+    # row = row * -1
+    # col = col * -1
+    # image = shift_image(gau2, (row, col))
+    # plt.imshow(image)
+    # plt.show() 
