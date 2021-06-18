@@ -3,6 +3,7 @@ import tifffile as tif
 import math_utils as utils
 import numpy as np
 import matplotlib.pyplot as plt
+import time
 
 
 def explore_cameras_offset(cam_1, cam_2, slices=[0], show=True):
@@ -61,16 +62,12 @@ def merge_views(front, back, method='local_variance', sigma=10):
                                      / tot[:, :])
     return merged
 
-def find_camera_registration_parameters(image_1, image_2):
-    M, N = image_1.shape
-    shift = [0, 0]
-    image_1_n = utils.normalize_0_1(image_1)
-    image_2_n = utils.normalize_0_1(image_2)
-    cross = utils.spatial_Xcorr_2D(image_1_n, image_2_n)
-    shift[0], shift[1] = np.unravel_index(np.argmax(cross), cross.shape) # it's ok even if pylint complains
-    center = np.asarray([int(M/2), int(N/2)])
-    shift[0] -= center[0]
-    shift[1] -= center[1]
+def find_camera_registration_offset(image_1, image_2):
+    shift = [0., 0.]
+    cross = utils.spatial_Xcorr_2D(image_1, image_2)
+    shift[0], shift[1] = np.unravel_index(np.argmax(cross), cross.shape)
+    shift[0] -= cross.shape[0]/2
+    shift[1] -= cross.shape[1]/2
     return shift # row and col components (y, and x cartesian then)
 
 def explore_camera_shifts(volumes_to_investigate,
@@ -86,7 +83,7 @@ def explore_camera_shifts(volumes_to_investigate,
                                                             VOLUME_SLICES, IMAGES_DIMENSION)
         for iter_1, j in enumerate(slices_to_investigate):
             shifts[iter_0, iter_1, 0], shifts[iter_0, iter_1, 1] = \
-                find_camera_registration_parameters(vol_0[j, :, :], vol_1[j, :, ::-1]) # nb the ::-1                                                                       
+                find_camera_registration_offset(vol_0[j, :, :], vol_1[j, :, ::-1]) # nb the ::-1                                                                       
     if show=='y':
         print(shifts)
         print('\nMeans: ')
@@ -120,7 +117,56 @@ def explore_camera_shifts(volumes_to_investigate,
 
     return int(round(np.mean(shifts[:, :, 0]), 0)), int(round(np.mean(shifts[:, :, 1]), 0))
     
+def file_names_list(total_volumes, seed_0='/SPC00_TM', 
+                                    seed_1='_ANG000_CM', 
+                                    seed_2='_CHN00_PH0'):
+    """ Basically used to list acquisition files so that I can parallelize.
+    List paradigm: [entry (int), views_1 (array), views_2 (array)]
+    """
+    files_list = []
+    j = 0
+    for i in range(total_volumes):
+        temp_list = [i]
+        for k in range(0, 2):
+            temp_list.append(seed_0 + f'{j:05}' + seed_1
+                            + str(k) + seed_2 + ".stack")
+        files_list.append(temp_list)
+        j += 1
+    return files_list
 
+def open_binary_stack(
+    stack_path,
+    background_path,
+    background_estimation_method='max',
+    size_x=1024,
+    size_y=1024,
+    file_type=np.uint16
+    ):
+    with open(stack_path, 'rb') as file:
+        stack_original = np.fromfile(file, dtype=file_type)
+    # Determine Z size automatically based on the array size
+    size_z = int(stack_original.size / size_x / size_y)
+    # Reshape the stack based on known dimensions
+    stack = np.reshape(stack_original, (size_z, size_y, size_x))
+    type_max = np.iinfo(stack.dtype).max
+    type_min = np.iinfo(stack.dtype).min
+    # hotpixels correction
+    stack[stack == type_max] = type_min
+    # open background images and subtract a value based on the
+    # background_estimation_method
+    background = tif.imread(background_path)
+    if background_estimation_method == 'max':
+        background = np.amax(background)
+    elif background_estimation_method == 'min':
+        background = np.amix(background)
+    elif background_estimation_method == 'mean':
+        background = np.mean(background)
+    else:
+        print('wrong background evaluation method selected')
+        return None
+    stack[stack <= background] = 0
+    stack[stack > background] -= background
+    return stack
 
 if __name__ == '__main__':
         

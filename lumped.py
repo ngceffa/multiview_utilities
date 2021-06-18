@@ -17,6 +17,16 @@ font = {'size'   : 18}
 
 plt.rc('font', **font)
 
+def deconvolve(image, psf, iterations=5):
+    # object refers to the estimated "true" sample
+    object = np.copy(image).astype(complex)
+    # lucy-richardson in the for loop
+    for k in range (iterations):
+        step_0 = image / (IFT2(FT2(object) * FT2(psf)))
+        step_1 = IFT2(FT2(step_0) * np.conj(FT2(psf)))
+        object *= step_1
+    return np.real(object)
+
 def temporal_shift_exploration(vol):
     return None
 
@@ -37,10 +47,10 @@ def create_volumes_time_series(files_list, TOTAL_VOLUMES, VOLUME_SLICES,
     return None
 
 # yes
-def files_names_list(total_volumes, seed_0='SPC00_TM', 
+def files_names_list(total_volumes, seed_0='/SPC00_TM', 
                      seed_1='_ANG000_CM', seed_2='_CHN00_PH0'):
     files_list = []
-    j = 88
+    j = 0
     for i in range(total_volumes):
         temp_list = [str(i)]
         for k in range(0, 2):
@@ -63,6 +73,7 @@ def write_binned_display(name, volume,  M, N, reduction_factor = 8):
     tif.imwrite(name, result, dtype=np.uint16)
     return None
 
+# yes
 def normalize_0_1(array):
     maximum, minimum = np.amax(array), np.amin(array)
     normalized = np.zeros(array.shape)
@@ -70,24 +81,31 @@ def normalize_0_1(array):
     normalized = (array - minimum) / delta
     return normalized
 
-def spatial_Xcorr_2D(f, g):
+# yes
+def spatial_Xcorr_2D(f, g, pad=False):
     """
     Cross-correlation between two 2D functions: (f**g).
     """
-    M, N = f.shape[0], f.shape[1]
-    one, two = np.pad(np.copy(f),
-                      ((int(M/2), int(M/2)),
-                       (int(N/2), int(N/2))),
-                      mode = 'constant',
-                      constant_values=(0,0)),\
-               np.pad(np.copy(g),
-                      ((int(M/2), int(M/2)),
-                      (int(N/2), int(N/2))),
-                      mode = 'constant', 
-                      constant_values=(0,0))                  
-    ONE, TWO =   FT2(one), FT2(two)
-    spatial_cross = ifftshift(ifft2(ifftshift(ONE) * np.conj(ifftshift(TWO))))\
-                    [int(M/2) :int(M/2+M), int(N/2) : int(N/2+N)]
+    if pad==True:
+        M, N = f.shape[0], f.shape[1]
+        one, two = np.pad(np.copy(f),
+                        ((int(M/2), int(M/2)),
+                        (int(N/2), int(N/2))),
+                        mode = 'constant',
+                        constant_values=(0,0)),\
+                np.pad(np.copy(g),
+                        ((int(M/2), int(M/2)),
+                        (int(N/2), int(N/2))),
+                        mode = 'constant', 
+                        constant_values=(0,0))                  
+        ONE, TWO =   FT2(one), FT2(two)
+        spatial_cross = ifftshift(ifft2(ifftshift(ONE) * np.conj(ifftshift(TWO))))\
+                        [int(M/2) :int(M/2+M), int(N/2) : int(N/2+N)]
+    else:
+        M, N = f.shape[0], f.shape[1]                 
+        ONE, TWO =   FT2(f), FT2(g)
+        spatial_cross = ifftshift(
+            ifft2(ifftshift(ONE) * np.conj(ifftshift(TWO))))
     spatial_cross = normalize_0_1(spatial_cross)
     return np.abs(spatial_cross)
 
@@ -106,12 +124,15 @@ def find_camera_registration_parameters(image_1, image_2):
     image_1_n = normalize_0_1(image_1)
     image_2_n = normalize_0_1(image_2)
     cross = spatial_Xcorr_2D(image_1_n, image_2_n)
-    shift[0], shift[1] = np.unravel_index(np.argmax(cross), cross.shape) # it's ok even if pylint complains
+    shift[0], shift[1] = np.unravel_index(
+        np.argmax(cross),
+        cross.shape) # it's ok even if pylint complains
     center = np.asarray([int(M/2), int(N/2)])
     shift[0] -= center[0]
     shift[1] -= center[1]
     return shift # row and col components (y, and x cartesian then)
 
+# 2D images
 def shift_image(image, shift):
     H, W = image.shape # Z = num. of images in stack; M, N = rows, cols;
     shifted = np.zeros((H, W),dtype = np.uint16)
@@ -121,6 +142,7 @@ def shift_image(image, shift):
     elif shift[1] > 0: shifted[:, int(shift[1]):] = shifted[:, :int(W - shift[1])] # shift right
     return shifted
 
+# 3D stacks
 def shift_views(views, shift):
     slices, H, W = views.shape # Z = num. of images in stack; M, N = rows, cols;
     shifted = np.copy(views)
@@ -208,7 +230,14 @@ def organize_volumes_8_bit(TOTAL_VOLUMES,
                     dtype=np.uint8)
     return None
 
-def merge_views(front, back, method='sharper', linear_boundaries=[0,1]): # "front" and "back" camera
+def merge_views(
+    front,
+    back,
+    method='mean',
+    front_deconv=None, # deconvolved versions
+    back_deconv=None
+    ):
+    # Using "front" and "back" camera views
     merged = np.zeros((front.shape), dtype=np.uint16)
 
     if method == 'mean':
@@ -274,7 +303,14 @@ def merge_views(front, back, method='sharper', linear_boundaries=[0,1]): # "fron
                 / (norm[i, :, :])
 
     elif method == 'use_deconvolved':
-        pass
+        front_weights = front_deconv - front
+        back_weights = back_deconv - back
+        norm = front_weights + back_weights
+        for i in range(front.shape[0]):
+            merged[i, :, :] = (
+                (front_weights[i, :, :] * front[i, :, :]
+                + back_weights[i, :, :] * back[i, :, :])
+                / norm[i, :, :])
     return merged
 
 # this will be mapped to multiprocessing
@@ -423,110 +459,163 @@ def open_binary_volume_series_with_hotpixel_correction(name,
     return volume_array
 
 # yes
-def explore_camera_shifts(volumes_to_investigate,
-                          slices_to_investigate,
-                          RAW_SLICES_FOLDER,
-                          VOLUME_SLICES,
-                          show='y'):
-    shifts = np.zeros((len(volumes_to_investigate), len(slices_to_investigate), 2))
+def explore_camera_shifts(
+    volumes_to_investigate,
+    slices_to_investigate,
+    stack_path,
+    background_path,
+    files_list,
+    show='y'):
+    num_volumes = len(volumes_to_investigate)
+    num_slices = len(slices_to_investigate)
+    shifts = np.zeros((num_volumes, num_slices, 2))
     for iter_0, i in enumerate(volumes_to_investigate):
-        vol_0 = open_binary_volume_with_hotpixel_correction(RAW_SLICES_FOLDER + files_list[i][1], 
-                                                            VOLUME_SLICES, IMAGES_DIMENSION)
-        vol_1 = open_binary_volume_with_hotpixel_correction(RAW_SLICES_FOLDER + files_list[i][2],
-                                                            VOLUME_SLICES, IMAGES_DIMENSION)
+        vol_0 = open_binary_stack(
+            stack_path + files_list[i][1],
+            background_path + '/Background_0.tif'
+            )
+        vol_1 = open_binary_stack(
+            stack_path + files_list[i][2],
+            background_path + '/Background_1.tif'
+            )
         for iter_1, j in enumerate(slices_to_investigate):
-            shifts[iter_0, iter_1, 0], shifts[iter_0, iter_1, 1] = find_camera_registration_parameters(vol_0[j, :, :], 
-                                                                                                       vol_1[j, : ,::-1])                                                                         
+            shifts[iter_0, iter_1, 0], shifts[iter_0, iter_1, 1] = \
+                find_camera_registration_parameters(
+                    vol_0[j, :, :],
+                    vol_1[j, : ,::-1]) # inversion of second camera                                                                       
+    shift_0 = np.mean(shifts[:, :, 0])
+    shift_1 = np.mean(shifts[:, :, 1])
+    std_0 = np.std(shifts[:, :, 0])
+    std_1 = np.std(shifts[:, :, 1])
     if show=='y':
         print(shifts)
         print('\nMeans: ')
-        print(round(np.mean(shifts[:, :, 0]), 2), ', ', round(np.mean(shifts[:, :, 1]),2))
+        print(round(shift_0, 0), ', ', round(shift_1, 0))
         print('\nStds: ')
-        print(round(np.std(shifts[:, :, 0]), 2), ', ', round(np.std(shifts[:, :, 1]), 2))
+        print(round(std_0, 2), ', ', round(std_1, 2))
         print('\nN.B. Output has rounded int values.')
         figshift  = plt.figure('1')
         x = np.arange(0, len(np.mean((shifts[:, :, 0]),axis=0)), 1)
         figshift.add_subplot(211)
         plt.title('vertical')
-        plt.errorbar(x, np.mean((shifts[:, :, 0]), axis=0), np.std((shifts[:, :, 0]), axis=0),fmt='o')
-        plt.fill_between(x, np.mean((shifts[:, :, 0]), axis=0)-np.std((shifts[:, :, 0]), axis=0),\
-                                 y2=np.mean((shifts[:, :, 0]), axis=0)+np.std((shifts[:, :, 0]), axis=0),\
-                                    color='b',alpha=.3,interpolate=True)
-        #plt.xlabel('selected volume [#]')
+        plt.errorbar(
+            x,
+            np.mean((shifts[:, :, 0]), axis=0),
+            np.std((shifts[:, :, 0]), axis=0),
+            fmt='o'
+            )
+        plt.fill_between(
+            x,
+            np.mean((shifts[:, :, 0]), axis=0) - np.std((shifts[:, :, 0]), axis=0),
+            y2=np.mean((shifts[:, :, 0]), axis=0) + np.std((shifts[:, :, 0]), axis=0),
+            color='b',
+            alpha=.3,
+            interpolate=True)
         plt.ylabel('shift [pixels]')
         plt.ylim(-30, -25)
         figshift.add_subplot(212)
         plt.title('horizontal')
-        plt.errorbar(x, np.mean((shifts[:, :, 1]), axis=0), np.std((shifts[:, :, 1]), axis=0),fmt='ro')
-        plt.fill_between(x, np.mean((shifts[:, :, 1]), axis=0)-np.std((shifts[:, :, 1]), axis=0),\
-                                 y2=np.mean((shifts[:, :, 1]), axis=0)+np.std((shifts[:, :, 1]), axis=0),\
-                                    color='r',alpha=.3,interpolate=True)
+        plt.errorbar(
+            x,
+            np.mean((shifts[:, :, 1]), axis=0),
+            np.std((shifts[:, :, 1]), axis=0),
+            fmt='ro')
+        plt.fill_between(
+            x,
+            np.mean((shifts[:, :, 1]), axis=0)-np.std((shifts[:, :, 1]), axis=0),
+            y2=np.mean((shifts[:, :, 1]), axis=0)+np.std((shifts[:, :, 1]), axis=0),
+            color='r',
+            alpha=.3,
+            interpolate=True)
         plt.ylim(155, 161)
         plt.xlabel('selected slice [#]')
         plt.ylabel('shift [pixels]')
         figshift.tight_layout()
         plt.show()
         figshift.savefig('shifts_slices.png',transparent=True)
-    return int(round(np.mean(shifts[:, :, 0]), 0)), int(round(np.mean(shifts[:, :, 1]), 0))
-    
-def background_evaluation(image, method='max'):
-    if method == 'max': background = np.amax(image)
-    if method == 'min': background = np.amin(image)
-    if method == 'mean': background = np.mean(image)
+    return int(round(shift_0, 0)), int(round(shift_1, 0))
+
+def open_binary_stack(
+    stack_path,
+    background_path,
+    background_estimation_method='max',
+    use_int=True,
+    size_x=2304,
+    size_y=2304,
+    file_type=np.uint16
+    ):
+    stack_original = np.fromfile(stack_path, dtype=file_type)
+    # Determine Z size automatically based on the array size
+    size_z = int(stack_original.size / size_x / size_y)
+    # Reshape the stack based on known dimensions
+    stack = np.reshape(stack_original, (size_z, size_y, size_x))
+    type_max = np.iinfo(stack.dtype).max
+    type_min = np.iinfo(stack.dtype).min
+    # hotpixels correction
+    stack[stack == type_max] = type_min
+    # open background images and subtract a value based on the
+    # background_estimation_method
+    background = tif.imread(background_path)
+    if background_estimation_method == 'max':
+        background = np.amax(background)
+    elif background_estimation_method == 'min':
+        background = np.amix(background)
+    elif background_estimation_method == 'mean':
+        background = np.mean(background)
     else:
         print('wrong background evaluation method selected')
         return None
-    return int(background)
-
-def background_subtraction(images, background):
-    subtracted = np.maximum(images - background, 0)
-    return subtracted.astype(np.uint16)
+    stack_subtracted = stack.astype(np.float16) - background
+    stack_subtracted[stack_subtracted[:, :, :] < 0] = 0
+    if use_int == True: return stack_subtracted.astype(np.uint16)
+    else: return stack_subtracted
 
 if __name__ == '__main__':
 
     # SETing UP
 
-    TOTAL_VOLUMES =  1 # raw volumes  (they have 2X the nof images)
-    VOLUME_SLICES = 10 # slices for each volume
+    TOTAL_VOLUMES =  2 # raw volumes  (they have 2X the nof images)
+    VOLUME_SLICES = 61 # slices for each volume
     TOTAL_IMAGES = TOTAL_VOLUMES * VOLUME_SLICES # total of raw data-images
-    IMAGES_DIMENSION = 1024 # assumed square images. N.b. try to have 2^n pixels
-    BACKGROUND_FOLDER = '/home/ngc/Documents/ls_test_data/' # add a "/" at the eend
-    RAW_SLICES_FOLDER = '/home/ngc/Documents/ls_test_data/' # or os.getcwd()
-    VOLUMES_OUTPUT_FOLDER = '/home/ngc/Documents/ls_test_data/' # define the name of the subfolder for saving
+    IMAGES_DIMENSION = 2304 # assumed square images. N.b. try to have 2^n pixels
+    BACKGROUND_FOLDER = '/home/ngc/Data/20210614/20X_488_20210614_151940'
+    RAW_SLICES_FOLDER = '/home/ngc/Data/20210614/20X_488_20210614_151940'
+    VOLUMES_OUTPUT_FOLDER = '/home/ngc/Data/20210614/20X_488_20210614_151940'
+    # define the name of the subfolder for saving
 
     if os.path.isdir(VOLUMES_OUTPUT_FOLDER) == False:
         os.mkdir(VOLUMES_OUTPUT_FOLDER)
 
-    BACKGROUND_CAM_1 = tif.imread(BACKGROUND_FOLDER + 'Background_0.tif')
-    BACKGROUND_CAM_2 = tif.imread(BACKGROUND_FOLDER + 'Background_1.tif') 
-
-    background_1 = background_evaluation(BACKGROUND_CAM_1, method='max')
-    background_2 = background_evaluation(BACKGROUND_CAM_2, method='max')
-
     files_list = files_names_list(TOTAL_VOLUMES)
-    #SPC00_TM00000_ANG000_CM0_CHN00_PH0.stack
+
+    single = open_binary_stack(
+        RAW_SLICES_FOLDER + files_list[0][1],
+        BACKGROUND_FOLDER + '/Background_0.tif'
+        )
 
     # CAMERA SHIFT COMPENNSATION
 
     volumes_to_investigate = np.arange(0, 1, 1)
-    slices_to_investigate = np.arange(2, 8, 1)
-    shifts = explore_camera_shifts(volumes_to_investigate,
-                                   slices_to_investigate,
-                                   RAW_SLICES_FOLDER,
-                                   VOLUME_SLICES,
-                                   show='n')
+    slices_to_investigate = np.arange(20, 25, 1)
+    shifts = explore_camera_shifts(
+        volumes_to_investigate,
+        slices_to_investigate,
+        RAW_SLICES_FOLDER,
+        RAW_SLICES_FOLDER,
+        files_list,
+        show='y')
 
-    #files_list = files_names_list(TOTAL_VOLUMES)
-    start = time.time()
-    mp_organize_volumes_from_list(organize_volumes_from_list_and_save,
-                                  RAW_SLICES_FOLDER,\
-                                  VOLUME_SLICES,
-                                  IMAGES_DIMENSION,
-                                  background_1,
-                                  background_2, 
-                                  shifts, files_list,
-                                  VOLUMES_OUTPUT_FOLDER)
-    print(time.time()-start)
+    # #files_list = files_names_list(TOTAL_VOLUMES)
+    # start = time.time()
+    # mp_organize_volumes_from_list(organize_volumes_from_list_and_save,
+    #                               RAW_SLICES_FOLDER,\
+    #                               VOLUME_SLICES,
+    #                               IMAGES_DIMENSION,
+    #                               background_1,
+    #                               background_2, 
+    #                               shifts, files_list,
+    #                               VOLUMES_OUTPUT_FOLDER)
+    # print(time.time()-start)
 
     # # start = time.time()
     # create_volumes_time_series(files_list, 100, VOLUME_SLICES,
@@ -623,13 +712,3 @@ if __name__ == '__main__':
 #     # # plt.imshow(vol1[60, :, :])
 #     # # plt.show()
 #     # -*- coding: utf-8 -*-
-
-
-
-
-
-
-
-
-
-                                                                          

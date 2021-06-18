@@ -71,7 +71,7 @@ def normalize_0_1(array):
     normalized = (array - minimum) / delta
     return normalized
 
-def spatial_xcorr_2D(f, g):
+def spatial_Xcorr_2D(f, g):
     """
     Cross-correlation between two 2D functions: (f**g).
     N.B. f can be considered as the moving input, g as the target.
@@ -93,7 +93,7 @@ def spatial_xcorr_2D(f, g):
     spatial_cross = ft.ifftshift(ft.ifft2(ft.ifftshift(ONE) \
                   * np.conj(ft.ifftshift(TWO)))) \
                     [int(M/2) :int(M/2+M), int(N/2) : int(N/2+N)]
-    spatial_cross = normalize_0_1(spatial_cross)
+    #spatial_cross = normalize_0_1(spatial_cross)
     return np.real(spatial_cross)
 
 def xcorr_peak_2D(cross):
@@ -148,16 +148,19 @@ def remove_background(image, background_image):
     return subtracted_image
 
 def shift_image(image, shift):                 
-    H, W = image.shape # Z = num. of images in stack; M, N = rows, cols;
+    H, W = image.shape
     shifted = np.copy(image)
     if shift[0] >= 0: shifted[int(shift[0]):, :] = \
                                     image[:int(H - shift[0]), :] # shift up
     elif shift[0] < 0: shifted[:int(H + shift[0]), :] = \
-                                    image[int(-shift[0]):, :] # shift down
-    if shift[1] < 0: shifted[:, :int(W + shift[1])] = \
-                                    shifted[:, int(-shift[1]):] # shift left
-    elif shift[1] >= 0: shifted[:, int(shift[1]):] = \
-                                    shifted[:, :int(W - shift[1])] # shift right
+                                     image[int(-shift[0]):, :] # shift down
+    if shift[1] > 0:
+        # shift right
+        shifted[:, int(shift[1]):] = shifted[:, :int(W - shift[1])]
+    elif shift[1] < 0:
+        # shift right
+        shifted[:, :int(W + shift[1])] = shifted[:, int(- shift[1]):]
+
     return shifted
     
 def open_binary_volume_with_hotpixel_correction(name, 
@@ -178,7 +181,7 @@ def files_names_list(total_volumes, seed_0='SPC00_TM',
                                     seed_1='_ANG000_CM', 
                                     seed_2='_CHN00_PH0'):
     """ Basically used to list acquisition files so that I can parallelize.
-    List paradigm: [entry (int), views_1 (array), view_2 (array)]
+    List paradigm: [entry (int), views_1 (array), views_2 (array)]
     """
     files_list = []
     j = 0
@@ -191,6 +194,40 @@ def files_names_list(total_volumes, seed_0='SPC00_TM',
         j += 1
     return files_list
 
+def open_binary_stack(
+    stack_path,
+    background_path,
+    background_estimation_method='max',
+    use_int=True,
+    size_x=2304,
+    size_y=2304,
+    file_type=np.uint16
+    ):
+    stack_original = np.fromfile(stack_path, dtype=file_type)
+    # Determine Z size automatically based on the array size
+    size_z = int(stack_original.size / size_x / size_y)
+    # Reshape the stack based on known dimensions
+    stack = np.reshape(stack_original, (size_z, size_y, size_x))
+    type_max = np.iinfo(stack.dtype).max
+    type_min = np.iinfo(stack.dtype).min
+    # hotpixels correction
+    stack[stack == type_max] = type_min
+    # open background images and subtract a value based on the
+    # background_estimation_method
+    background = tif.imread(background_path)
+    if background_estimation_method == 'max':
+        background = np.amax(background)
+    elif background_estimation_method == 'min':
+        background = np.amix(background)
+    elif background_estimation_method == 'mean':
+        background = np.mean(background)
+    else:
+        print('wrong background evaluation method selected')
+        return None
+    stack_subtracted = stack.astype(np.float16) - background
+    stack_subtracted[stack_subtracted[:, :, :] < 0] = 0
+    if use_int == True: return stack_subtracted.astype(np.uint16)
+    else: return stack_subtracted
 
 if __name__ == '__main__':
 
