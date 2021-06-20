@@ -163,6 +163,22 @@ def shift_image(image, shift):
 
     return shifted
     
+def shift_volume(volume, shift):
+    D, H, W = volume.shape
+    shifted = np.copy(volume)
+    if shift[0] >= 0: shifted[int(shift[0]):, :] = \
+                                    volume[:int(H - shift[0]), :] # shift up
+    elif shift[0] < 0: shifted[:int(H + shift[0]), :] = \
+                                     volume[int(-shift[0]):, :] # shift down
+    if shift[1] > 0:
+        # shift right
+        shifted[:, int(shift[1]):] = shifted[:, :int(W - shift[1])]
+    elif shift[1] < 0:
+        # shift right
+        shifted[:, :int(W + shift[1])] = shifted[:, int(- shift[1]):]
+
+    return shifted
+
 def open_binary_volume_with_hotpixel_correction(name, 
                                                 VOLUME_SLICES,
                                                 IMAGES_DIMENSION,

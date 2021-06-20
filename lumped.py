@@ -535,6 +535,7 @@ def explore_camera_shifts(
         figshift.savefig('shifts_slices.png',transparent=True)
     return int(round(shift_0, 0)), int(round(shift_1, 0))
 
+#yes
 def open_binary_stack(
     stack_path,
     background_path,

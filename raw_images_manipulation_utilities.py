@@ -64,7 +64,7 @@ def merge_views(front, back, method='local_variance', sigma=10):
 
 def find_camera_registration_offset(image_1, image_2):
     shift = [0., 0.]
-    cross = utils.spatial_Xcorr_2D(image_1, image_2)
+    cross = utils.spatial_xcorr_2D(image_1, image_2)
     shift[0], shift[1] = np.unravel_index(np.argmax(cross), cross.shape)
     shift[0] -= cross.shape[0]/2
     shift[1] -= cross.shape[1]/2
@@ -72,7 +72,7 @@ def find_camera_registration_offset(image_1, image_2):
 
 def find_sample_drift(fixed, moving):
     shift = [0., 0., 0.]
-    cross = utils.spatial_Xcorr_3D(fixed, moving)
+    cross = utils.spatial_xcorr_3D(fixed, moving)
     shift[0], shift[1], shift[2] = np.unravel_index(np.argmax(cross), cross.shape)
     shift[0] -= cross.shape[0]/2
     shift[1] -= cross.shape[1]/2
