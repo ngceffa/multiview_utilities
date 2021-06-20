@@ -70,6 +70,15 @@ def find_camera_registration_offset(image_1, image_2):
     shift[1] -= cross.shape[1]/2
     return shift # row and col components (y, and x cartesian then)
 
+def find_sample_drift(fixed, moving):
+    shift = [0., 0., 0.]
+    cross = utils.spatial_Xcorr_3D(fixed, moving)
+    shift[0], shift[1], shift[2] = np.unravel_index(np.argmax(cross), cross.shape)
+    shift[0] -= cross.shape[0]/2
+    shift[1] -= cross.shape[1]/2
+    shift[2] -= cross.shape[2]/2
+    return shift # row and col components (y, and x cartesian then)
+
 def explore_camera_shifts(volumes_to_investigate,
                           slices_to_investigate,
                           RAW_SLICES_FOLDER,

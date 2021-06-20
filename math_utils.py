@@ -104,28 +104,28 @@ def spatial_xcorr_3D(f, g):
     """
     Cross-correlation between two 2D functions: (f**g).
     N.B. f can be considered as the moving input, g as the target.
-    - inputs are padded to avoid artifacts (this makes it slower)
+    - inputs are not padded to avoid artifacts (this would make it slower)
     - The output is normalized to [0,1)
     """
     Z, M, N = f.shape[0], f.shape[1], f.shape[2]
-    one, two = np.pad(np.copy(f),
-                      ((int(Z/2), int(Z/2)),
-                      (int(M/2), int(M/2)),
-                       (int(N/2), int(N/2))),
-                      mode = 'constant',
-                      constant_values=(0, 0, 0)),\
-               np.pad(np.copy(g),
-                      ((int(z/2), int(z/2)),
-                      (int(M/2), int(M/2)),
-                      (int(N/2), int(N/2))),
-                      mode = 'constant', 
-                      constant_values=(0, 0, 0))                  
-    ONE, TWO =   FT3(one), FT3(two)
+    # one, two = np.pad(np.copy(f),
+    #                   ((int(Z/2), int(Z/2)),
+    #                   (int(M/2), int(M/2)),
+    #                    (int(N/2), int(N/2))),
+    #                   mode = 'constant',
+    #                   constant_values=(0, 0, 0)),\
+    #            np.pad(np.copy(g),
+    #                   ((int(z/2), int(z/2)),
+    #                   (int(M/2), int(M/2)),
+    #                   (int(N/2), int(N/2))),
+    #                   mode = 'constant', 
+    #                   constant_values=(0, 0, 0))                  
+    ONE, TWO =   FT3(f), FT3(g)
     spatial_cross = ft.ifftshift(ft.ifftn(ft.ifftshift(ONE) \
-                  * np.conj(ft.ifftshift(TWO)))) \
-                    [int(Z/2) :int(Z/2+Z),
-                    int(M/2) :int(M/2+M),
-                    int(N/2) : int(N/2+N)]
+                  * np.conj(ft.ifftshift(TWO))))
+                    # [int(Z/2) :int(Z/2+Z),
+                    # int(M/2) :int(M/2+M),
+                    # int(N/2) : int(N/2+N)]
     spatial_cross = normalize_0_1(spatial_cross)
     return np.real(spatial_cross)
 

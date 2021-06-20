@@ -32,12 +32,14 @@ if __name__=='__main__':
         os.mkdir(VOLUMES_OUTPUT_FOLDER)
 
     # --------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
     # list of names of all the volumes as 
     # [timepoint (int), vol_cam_0 [str], vol_cam_1 (str)]
     # next function uses default file names as saved by Labview software
     # (check arguments in "rim" library)
     data_list = rim.file_names_list(TIMEPOINTS)
 
+    # --------------------------------------------------------------------------
     # --------------------------------------------------------------------------
     # Camera offset compensation
     # The cameras are not pixel-exactly aligned: the offset in their views
@@ -53,6 +55,8 @@ if __name__=='__main__':
     # 2. A pictorial result will tell if it worked. 
     #    It should consist of: two superimposed imaged before displacement, 
     #    after displacement, and a print() of the displacement vector.
+    # --------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
 
     timepoint_for_offset_calculation = 0
     slices_for_offset_calculation = np.asarray((20, 25, 30, 35, 40, 45))
@@ -74,14 +78,12 @@ if __name__=='__main__':
     for i in slices_for_offset_calculation:
         image_0 = stack_0[i, :, :]
         image_1 = stack_1[i, :, :]
-
-    # n.b. images are one the mirror of the other, hence the [:, ::-1]
     
         image_0_b = image_0[int(centre - extent/2):int(centre + extent/2),
                             int(centre - extent/2):int(centre + extent/2)]
         image_1_b = image_1[int(centre - extent/2):int(centre + extent/2),
                             int(centre - extent/2):int(centre + extent/2)]
-
+        # n.b. images are one the mirror of the other, hence the [:, ::-1]
         shifts = rim.find_camera_registration_offset(image_0_b,
                                 image_1_b[:, ::-1])
         shift_row += shifts[0] / len(slices_for_offset_calculation)
@@ -100,8 +102,9 @@ if __name__=='__main__':
     plt.show()
 
     print(f'\nAverage shift: {shift} ([row, cols] in pixels)\n')
-
     # --------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
+
     # Temporal (rigid) registration]
 
     # The sample suffers from a slow drift: it usually sinks.
@@ -118,57 +121,97 @@ if __name__=='__main__':
     # 2. A pictorial result will tell if it worked. 
     #    It should consist of 3 linear fits for the 3 displacement compontents.
     #    Only one component is expected to be substantially != 0.
+    # --------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
 
     timestep = 10 # analysis performed every "timestep" volumes
-
-
-
-    timepoint_for_offset_calculation = 0
-    slices_for_offset_calculation = np.asarray((20, 25, 30, 35, 40, 45))
-    extent = 1000 # pixels used to looka at a central subregion in the images
+    extent_x_y = 1000
     centre = IMAGES_DIMENSION / 2
-    shift_row, shift_col = 0, 0
+    shifts_row, shifts_col, shifts_plane = [], [], []
 
-    stack_0 = rim.open_binary_stack(
-        RAW_SLICES_FOLDER + data_list[timepoint_for_offset_calculation][1],
+    # by default we use camera 0, but using camera 1 is also fine.
+    # (just change filename and Background accordingly)
+
+    start_stack = rim.open_binary_stack(
+        RAW_SLICES_FOLDER + data_list[0][1],
         BACKGROUND_FOLDER + '/Background_0.tif',
         size_x=IMAGES_DIMENSION,
         size_y=IMAGES_DIMENSION)
-    stack_1 = rim.open_binary_stack(
-        RAW_SLICES_FOLDER + data_list[timepoint_for_offset_calculation][2],
-        BACKGROUND_FOLDER + '/Background_1.tif',
+    # Use only a central region
+    start_focus = start_stack[
+        :,
+        int(centre - extent/2):int(centre + extent/2),
+        int(centre - extent/2):int(centre + extent/2)
+        ]
+    
+    
+    for t in range(0, TIMEPOINTS, timestep):
+        moving_stack = rim.open_binary_stack(
+        RAW_SLICES_FOLDER + data_list[t][1],
+        BACKGROUND_FOLDER + '/Background_0.tif',
         size_x=IMAGES_DIMENSION,
         size_y=IMAGES_DIMENSION)
+        # Use only a central region
+        moving_focus = moving_stack[
+        :,
+        int(centre - extent/2):int(centre + extent/2),
+        int(centre - extent/2):int(centre + extent/2)
+        ]
+        
+        shifts = rim.find_sample_drift(start_focus, moving_focus)
+        shifts_plane.append(shift[0])
+        shifts_row.append(shift[1])
+        shifts_col.append(shift[2])
     
-    for i in slices_for_offset_calculation:
-        image_0 = stack_0[i, :, :]
-        image_1 = stack_1[i, :, :]
+    # FITTING (linear)
+    # y = m x + q
 
-    # n.b. images are one the mirror of the other, hence the [:, ::-1]
-    
-        image_0_b = image_0[int(centre - extent/2):int(centre + extent/2),
-                            int(centre - extent/2):int(centre + extent/2)]
-        image_1_b = image_1[int(centre - extent/2):int(centre + extent/2),
-                            int(centre - extent/2):int(centre + extent/2)]
+    # numpy.polyfit(x, y, deg,
 
-        shifts = rim.find_camera_registration_offset(image_0_b,
-                                image_1_b[:, ::-1])
-        shift_row += shifts[0] / len(slices_for_offset_calculation)
-        shift_col += shifts[1] / len(slices_for_offset_calculation)
+    x_plane = np.arange(0, len(shifts_plane), 1)
+    x_row = np.arange(0, len(shifts_row), 1)
+    x_col = np.arange(0, len(shifts_col), 1)
 
-    shift = np.asarray((shift_row, shift_col)).astype(np.int_)
-    new_image= matut.shift_image(image_1[:,::-1], shift)
+    fit_plane = np.polyfit(x_plane, np.asarray(shifts_plane), 1)
+    y_plane = fit_plane[0] * x_plane + fit_plane[1]
 
-    offset_recap = plt.figure('offset recap', figsize=(15, 7))
-    offset_recap.add_subplot(121)
-    plt.imshow(image_0, alpha=.7, cmap='Oranges')
-    plt.imshow(image_1[:, ::-1], alpha=.5, cmap='Blues')
-    offset_recap.add_subplot(122)
-    plt.imshow(image_0, alpha=.7, cmap='Oranges')
-    plt.imshow(new_image, alpha=.5, cmap='Blues')
+    fit_row = np.polyfit(x_row, np.asarray(shifts_row), 1)
+    y_row = fit_row[0] * x_row + fit_row[1]
+
+    fit_col = np.polyfit(x_col, np.asarray(shifts_col), 1)
+    y_col = fit_col[0] * x_col + fit_col[1]
+
+    summary = plt.figure('summary')
+    summary.add_subplot(311)
+    plt.plot(x_plane, shifts_plane, 'o', color='azure')
+    plt.plot(x_plane, fit_plane, '--', color='blue', alpha=.4)
+    summary.add_subplot(312)
+    plt.plot(shifts_row, 'o', color='orange')
+    plt.plot(x_row, fit_row, '--', color='red', alpha=.4)
+    summary.add_subplot(313)
+    plt.plot(shifts_col, 'o', color='lightgreen')
+    plt.plot(x_col, fit_col, '--', color='green', alpha=.4)
     plt.show()
 
-    print(f'\nAverage shift: {shift} ([row, cols] in pixels)\n')
-    
+    # --------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
+
+    # Feature extraction
+    # TO merge images following Preibish et al. approximation to local entropy,
+    # two sigmas must be selected. The first one should be larger than the linear
+    # dimension of sensible features.
+    # e.g. feature = 10 pixels, value = 15 pixels (???)
+    # Find it with the cursos over the image,
+    # and then save it in "sigma" value.
+    #
+
+    feature_dimension = plt.figure('extract feature')
 
 
+     # --------------------------------------------------------------------------
+    # --------------------------------------------------------------------------
+
+    # Saving all the hyperparameters in a .csv
+    # - cameras offset
+    # - drift fit parameters
+    # - sigma 
