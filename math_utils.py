@@ -1,4 +1,4 @@
-import numpy as np 
+import numpy as np
 from numba import jit
 import matplotlib.pyplot as plt
 import scipy as sp
@@ -246,16 +246,21 @@ def open_binary_stack(
     else: return stack_subtracted
 
 if __name__ == '__main__':
+    pass
 
-    print('\nI am working\n')
-    gau1 = gaussian_2D(1024, sigma=20)
-    # gau2 = gaussian_2D(1024, [-100, -100], 20) #row major convention
+    # ciao = np.linspace(
 
-    # cross = spatial_xcorr_2D(gau2, gau1)
-    # row, col = xcorr_peak_2D(cross)
-    # print(row, col)
-    # row = row * -1
-    # col = col * -1
-    # image = shift_image(gau2, (row, col))
-    # plt.imshow(image)
-    # plt.show() 
+    # print('\nI am working\n')
+    # # gau1 = gaussian_2D(1024, sigma=20)
+    # # gau2 = gaussian_2D(1024, [-100, -100], 20) #row major convention
+
+    # # cross = spatial_xcorr_2D(gau2, gau1)
+    # # row, col = xcorr_peak_2D(cross)
+    # # print(row, col)
+    # # row = row * -1
+    # # col = col * -1
+    # # image = shift_image(gau2, (row, col))
+    # # plt.imshow(image)
+    # # plt.show() 
+    # plt.imshow(gau1)
+    # plt.show()

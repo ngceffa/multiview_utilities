@@ -19,12 +19,16 @@ if __name__=='__main__':
 
     # --------------------------------------------------------------------------
     #Local variables and constants.
+
     # Carefully read and change the variables in the next section
-    # to encompass the data to be analysed.
-    VOLUME_SLICES = 53 # number of images for each volume
-    TIMEPOINTS =  161
-    TOTAL_IMAGES = TIMEPOINTS * VOLUME_SLICES # total of raw data-images
-    IMAGES_DIMENSION = 1024 # assumed square images. N.b. try to have 2^n pixels
+    # to match the volume to be analysed.
+
+    SLICES = 53 # number of images for each volume
+    TIMEPOINTS =  161 # aka number of acquired volumes
+    TOTAL_IMAGES = TIMEPOINTS * SLICES # total of raw data-images
+    IMAGES_DIMENSION = 1024 # assumed square images.
+        # N.b. try to have 2^n pixels: it speeds up FFt calculations.
+    # Folder to get data and save data:
     RAW_SLICES_FOLDER = '/home/ngc/Data/560_other_larva'
     BACKGROUND_FOLDER = '/home/ngc/Data/16_06/fift_1_percent_agar_20210616_164944'
     VOLUMES_OUTPUT_FOLDER = '/home/ngc/Data/560_other_larva/output_test'
@@ -35,10 +39,11 @@ if __name__=='__main__':
 
     # --------------------------------------------------------------------------
     # --------------------------------------------------------------------------
-    # list of names of all the volumes as 
+    # Create a list of names of all the volumes as 
     # [timepoint (int), vol_cam_0 [str], vol_cam_1 (str)]
-    # next function uses default file names as saved by Labview software
-    # (check arguments in "rim" library)
+    # next function uses a default file names paradigm, 
+    # as saved by Labview software
+    # (check arguments in "raw_images_manipulation_utilities" library)
     data_list = rim.file_names_list(TIMEPOINTS)
 
     # --------------------------------------------------------------------------

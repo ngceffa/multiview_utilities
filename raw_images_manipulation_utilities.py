@@ -36,6 +36,63 @@ def cameras_shift_registration(views, shift):
         shifted[i, :, :] = utils.shift_image(views[i, : :], shift)
     return shifted
 
+def merge_two_images(front, back, method='local_variance', sigma=10):
+    """ Images are merged.
+    """
+    merged = np.zeros((front.shape))
+    if method == 'average':
+        # Super simple average: fast but poor quality
+        merged[:, :] = np.int((front[:, :] + back[:, :] / 2))
+    elif method == 'local_variance':
+        # Images are merged using the approximation of local variance
+        # similar to the one defined  in Preibish et al. 2008
+        # 'Mosaicing of Single Plane Illumination Microscopy Images
+        # Using Groupwise Registration and Fast Content-Based Image Fusion'
+        # shorturl.at/nHMY5
+        gaus_1 = utils.gaussian_2D(front.shape[0], sigma=sigma)
+        Gaus_1 = utils.FT2(gaus_1)
+        Front = utils.FT2(front[:, :])
+        Back = utils.FT2(back[:, :])
+        front_weight = (utils.IFT2(Front - (Front * Gaus_1)))**2
+        back_weigth = (utils.IFT2(Back - (Front * Gaus_1)))**2
+        tot = front_weight + back_weigth
+        merged[:, :] = np.real((front_weight * front[:, :] 
+                                    + back_weigth * back[:, :])\
+                                    / tot[:, :])
+    elif method == 'preib':
+        # Compute the two gaussian filters
+        sigma_1 = 20
+        sigma_2 = 40
+        x = np.arange(0, merged.shape[0], 1)
+        y = np.arange(0, merged.shape[1], 1)
+        x, y = np.meshgrid(x, y)
+        gaus_1 = np.exp(-x**2 / (2 * sigma_1**2)) \
+                + np.exp(-y**2 / (2 * sigma_1**2))
+        gaus_2 = np.exp(-x**2 / (2 * sigma_2**2)) \
+                + np.exp(-y**2 / (2 * sigma_2**2))
+        gaus_1_ft = utils.FT2(gaus_1)
+        gaus_2_ft = utils.FT2(gaus_2)
+        
+        # Compute the weights for views summation.
+        front_ft = utils.FT2(front[:, :])
+        back_ft = utils.FT2(back[:, :])
+        front_weights = utils.IFT2(front_ft * gaus_1_ft)
+        front_weights = (front[:, :] - front_weights)**2
+        front_weights = utils.IFT2(gaus_2_ft * utils.FT2(front_weights))
+        back_ft = utils.FT2(back[:, :])
+        back_weights = utils.IFT2(back_ft * gaus_1_ft)
+        back_weights = (back[:, :] - back_weights)**2
+        back_weights = utils.IFT2(gaus_2_ft * utils.FT2(back_weights))
+        norm = front_weights + back_weights
+
+        # Weighted sum.
+        merged[:, :] = np.real(
+            front_weights[:, :] * front[:, :]
+            + back_weights[:, :] * back[:, :])\
+            / (norm[:, :])
+
+    return merged
+
 def merge_views(front, back, method='local_variance', sigma=10):
     """ Images are merged.
     """
