@@ -5,6 +5,38 @@ import scipy as sp
 import scipy.fftpack as ft
 
 
+def gaus_3D_for_fit_2(
+    x_data,
+    offset,
+    amplitude, 
+    z_0, 
+    x_0, 
+    y_0, 
+    den_z, 
+    den_x, 
+    den_y):
+    # xdata is a vstack of raveled meshgrids directions
+
+    z, x, y = x_data
+
+    return (offset + np.abs(amplitude)
+         * np.exp(-1 * np.pi *
+        (((z - z_0)**2 / den_z**2)
+        + ((x - x_0)**2 / den_x**2)
+        + ((y - y_0)**2 / den_y**2))
+        )).flatten()
+
+def gaus_3D_for_fit(x_data, *p):
+
+    z, x, y = x_data
+
+    return (p[0] + np.abs(p[1])
+         * np.exp(-1 * np.pi *
+        (((z - p[2])**2 / p[3]**2)
+        + ((x - p[4])**2 / p[5]**2)
+        + ((y - p[6])**2 / p[7]**2))
+        )).flatten()
+
 def FT2(f):
     """ 2D Inverse Fourier Transform, with proper shift
     """
@@ -76,7 +108,6 @@ def spatial_Xcorr_2D(f, g):
     Cross-correlation between two 2D functions: (f**g).
     N.B. f can be considered as the moving input, g as the target.
     - inputs are padded to avoid artifacts (this makes it slower)
-    - The output is normalized to [0,1)
     """
     M, N = f.shape[0], f.shape[1]
     one, two = np.pad(np.copy(f),
@@ -93,7 +124,6 @@ def spatial_Xcorr_2D(f, g):
     spatial_cross = ft.ifftshift(ft.ifft2(ft.ifftshift(ONE) \
                   * np.conj(ft.ifftshift(TWO)))) \
                     [int(M/2) :int(M/2+M), int(N/2) : int(N/2+N)]
-    #spatial_cross = normalize_0_1(spatial_cross)
     return np.real(spatial_cross)
 
 def xcorr_peak_2D(cross):

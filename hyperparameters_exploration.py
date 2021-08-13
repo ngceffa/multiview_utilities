@@ -45,7 +45,6 @@ if __name__=='__main__':
     # as saved by Labview software
     # (check arguments in "raw_images_manipulation_utilities" library)
     data_list = rim.file_names_list(TIMEPOINTS)
-
     # --------------------------------------------------------------------------
     # --------------------------------------------------------------------------
     # Camera offset compensation
@@ -187,9 +186,6 @@ if __name__=='__main__':
     x_plane = np.arange(0, len(shifts_plane), 1)
     x_row = np.arange(0, len(shifts_row), 1)
     x_col = np.arange(0, len(shifts_col), 1)
-
-    def fit_simple(x, p):
-        return p * x
 
     fit_plane_0 = curve_fit(
         fit_simple,

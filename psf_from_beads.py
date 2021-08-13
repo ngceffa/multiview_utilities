@@ -25,12 +25,12 @@ if __name__=='__main__':
     #Local variables and constants.
     # Carefully read and change the variables in the next section
     # to encompass the data to be analysed.
-    VOLUME_SLICES = 141 # number of images for each volume
+    VOLUME_SLICES = 41 # number of images for each volume
     TIMEPOINTS =  1
     TOTAL_IMAGES = TIMEPOINTS * VOLUME_SLICES # total of raw data-images
     IMAGES_DIMENSION = 2304 # assumed square images. N.b. try to have 2^n pixels
-    RAW_SLICES_FOLDER = '/home/ngc/Data/Beads_20210617_134329'
-    BACKGROUND_FOLDER = '/home/ngc/Data/Beads_20210617_134329'
+    RAW_SLICES_FOLDER = '/home/ngc/Desktop/test_data/Beads20X_LowerC/beads'
+    BACKGROUND_FOLDER = '/home/ngc/Desktop/test_data/Beads20X_LowerC/beads'
 
     z_width, x_width, y_width = [], [], []
     # (check arguments in "rim" library)
@@ -46,7 +46,7 @@ if __name__=='__main__':
         size_x=IMAGES_DIMENSION,
         size_y=IMAGES_DIMENSION)
 
-    box = np.asarray((36, 36, 36))
+    box = np.asarray((21, 21, 21))
 
     # x_val = np.arange(- int(box[0]/2), int(box[0]/2), 1)
     # y_val = np.arange(- int(box[1]/2), int(box[1]/2), 1)
@@ -59,7 +59,7 @@ if __name__=='__main__':
     mean_b_z, mean_b_x, mean_b_y = 0, 0, 0
     
     beads = 0
-    max_beads = 90
+    max_beads = 30
     z_chosen = 21
     print('\nNUMBER OF BEADS FOUND:\n')
     while beads < max_beads:
@@ -115,13 +115,16 @@ if __name__=='__main__':
                 int(x_max - box[1] / 2):int(x_max + box[1] / 2),
                 int(y_max - box[2] / 2):int(y_max + box[2] / 2),
             ] = 0
-
+        
         print(beads, end=', ', flush=True)
     
+
+    pixel_size = .3 #um
+    z_step = 1 #um
     print(
-        '\nMean_b_z: ', np.round(mean_b_z, 2), 
-        '\nMean_b_x' , np.round(mean_b_x, 2),
-        '\nMean_b_y' , np.round(mean_b_y, 2))
+        '\nMean_b_z: ', np.round(mean_b_z * z_step, 2), 
+        '\nMean_b_x' , np.round(mean_b_x * pixel_size, 2),
+        '\nMean_b_y' , np.round(mean_b_y * pixel_size, 2))
     plt.figure('widths', figsize=(12, 8))
     plt.plot(z_width, 'o-', color='mediumorchid', lw=2, ms=7, alpha=.8, label='z')
     z_const = mean_b_z * np.ones((len(z_width)))
@@ -137,6 +140,13 @@ if __name__=='__main__':
     plt.show()
     
     params_dict = {}
+
+    # add "eliminate slides" in Jupyter
+
+
+    # print(np.average(y_width[10:]) * pixel_size)
+    # print(np.average(x_width) * pixel_size)
+    # print(np.average(z_width) * z_step)
 
     # params_dict['bz': mean_b_z]
 
